@@ -3,7 +3,15 @@
 import HelloWorld from './components/HelloWorld.vue';
 import AddMenu from './components/AddMenu.vue'
 import Modal from './components/Modal.vue';
-
+import { BPagination} from 'bootstrap-vue-3'
+const pagination = ( page, totalItemsCount, numberOfItemsPerPage) => {
+  var pagesCount = (totalItemsCount - 1) / numberOfItemsPerPage + 1;
+  
+  var start = (page - 1) * numberOfItemsPerPage + 1;
+  var end = Math.min(start + numberOfItemsPerPage - 1, totalItemsCount);
+  
+  return `${start} to ${end} of ${totalItemsCount}`;
+}
 const fetch_retry = async (url, options, n = 3) => {
     for (let i = 0; i < n; i++) {
         try {
@@ -14,8 +22,11 @@ const fetch_retry = async (url, options, n = 3) => {
         }
     }
 };
-const API_URL = `https://jsonplaceholder.typicode.com/comments/`;
+const Server_API_URL = `https://jsonplaceholder.typicode.com/comments/`;
+const Loca_API_URL = `http://localhost:3000/comments/`;
+let API_URL = Loca_API_URL;
 let id = 0;
+let tableCount = 0;
 const getInitialItems = () => {
   GetList();
 };
@@ -27,11 +38,16 @@ const getInitialItems = () => {
   */
 export default {
    components: {
+     BPagination,
     AddMenu,
     Modal
   },
   data() {
     return {
+      currentPage:1,
+      perPage:5,
+      Enviroment : [Server_API_URL , Loca_API_URL],
+      selectedEnviroment: Loca_API_URL,
       editO:null,
       todoId: 1,
       childMsg:{},
@@ -40,7 +56,8 @@ export default {
       editID: 0,
       signal: null,
       data: null,
-      posts: null,
+      posts:null,
+      dataStream:[],
       editItemData: {
         'id' : 'placeholderID',
         'item_name': 'placeHolderName',
@@ -62,10 +79,10 @@ export default {
       console.log(table);
      
     },
-    onEditSubmit()
+    onEditSubmit(i)
     {
       
-      console.log("submited" , this.editItemData)
+      console.log("edit submited" , i)
      this.EditData(this.editItemData)
       this.editing = false;
     }
@@ -85,12 +102,17 @@ export default {
     },
     removeFromCollection(i , to){
       console.log(i,to)
+            this.dataStream = this.dataStream.filter((t) => t.id !== i.id);
+
       this.posts = this.posts.filter((t) => t.id !== i.id);
 
     },
     addToCollection(i)
     {
-      this.posts = this.posts.push(i);
+      //this.posts.splice()
+      let current = this.posts.length;
+      this.posts.splice(0, 1, i)
+      //this.posts.push(i);
     },
     removePost(i){
       this.posts = this.posts.filter((t) => t !== i);
@@ -102,9 +124,32 @@ export default {
     async GetList() {
       //this.posts = null;
       let ge = await fetch_retry(API_URL);
+      let v = await ge.json();
+      this.dataStream= v;
+      this.posts= v;
+      //let e = this.currentPage = 1;
+      //this.currentPage = 1;
+      console.log(pagination(1, this.dataStream.length,5))
+       this.getNextPage()
+    },
+    getNextPage()
+    {
       
-      this.posts = await ge.json();
+      let e = this.currentPage;
+      let r = pagination(e, this.dataStream.length,this.perPage);
       
+      console.log("current page : ", this.currentPage, "per page",this.perPage, this.rows)
+      var start = (this.currentPage -1)*this.perPage;
+      var end = start + this.perPage;
+      this.posts = this.dataStream.slice(start,end)
+    },
+     getPreviousPage()
+    {
+      let e = this.currentPage--;
+      let r = pagination(e, this.dataStream.length,5)
+      console.log(r)
+
+      //this.posts = this.dataStream.slice(this.currentPage*5,10)
     },
     async fetchData() {
       this.signal = null;
@@ -131,7 +176,7 @@ export default {
       let postId = 2
       console.log("posted$",i, "post ID", postId)
       let pa = 'http://localhost:3000/comments/';
-      const res =  fetch_retry ('http://localhost:3000/comments/', {
+      const res =  fetch_retry (API_URL, {
   method: 'POST',
   body: JSON.stringify({
    
@@ -142,13 +187,10 @@ export default {
     'Content-type': 'application/json; charset=UTF-8',
   },
 
-}).then((response) => response.json()).then((json) => {console.log("server response" , json); this.posts.push(json) })
+}).then((response) => response.json()).then((json) => {console.log("server upload response" , json); this.posts.splice(0,0,json) })
 .catch(error => {alert(error);});
 
-
-this.signal = await res;
  //this.posts.push({ postId, title: title, body: body})
-console.log("signal update ", this.signal)
 },
 /*
 editItemData: {
@@ -172,7 +214,14 @@ editItemData: {
     'Content-type': 'application/json; charset=UTF-8',
   },
 }).then((response) => response.json()).then((json) => {console.log("server response" , json);
- this.GetList()
+ //this.GetList()
+//this.posts[json.id -1].body = json.body; 
+//this.posts[json.id -1].name = json.title; 
+const index = this.posts.findIndex(object => {
+  return object.id === json.id;
+});
+this.posts.splice(index, 1, json)
+  //addToCollection(i, json)
 
  })
 .catch(error => {alert(error);});
@@ -181,22 +230,45 @@ editItemData: {
 
   },
     mounted() {
-      
     this.GetList();
   },
+  computed: {
+      rows() {
+        //if(this.posts)
+        return this.dataStream.length
+      },
+      
+    },
   watch: {
-    /*
-   signal()
-   {
-     //this.GetList();
-   }*/
+    currentPage(){
+      this.getNextPage();
+    },
+    selectedEnviroment()
+    {
+      console.log(this.selectedEnviroment)
+      API_URL = this.selectedEnviroment;
+      this.posts = null
+      this.GetList();
+    }
   }
 };
 </script>
 
 <template>
+      <div class="overflow-auto">
+    
+        <h1 class="modal-container">Crud App</h1>   
 <div  class="container">
+<template v-for="branch in Enviroment">
+    <input type="radio"
+      :id="branch"
+      :value="branch"
+      name="branch"
+      v-model="selectedEnviroment">
+    <label :for="branch">{{ branch }}</label>
+  </template>
 </div>
+
   <div id="app">
 
   <div  class="container">
@@ -218,15 +290,30 @@ editItemData: {
     <button @click="GetList">Get posts</button>
     <p v-if="!posts">Getting Posts...</p>
     <p v-else>{{ posts[0] }} </p>
+<button @click="getNextPage"> Next page</button>
 
+<nav aria-label="Page navigation example">
+  <ul class="pagination justify-content-center">
+      <a @click="getPreviousPage()" class="page-link" href="#" tabindex="-1">Previous</a>
+    <li class="page-item disabled">
+    </li>
+    <li class="page-item"><a class="page-link" href="#">1</a></li>
+    <li class="page-item"><a class="page-link" href="#">2</a></li>
+    <li class="page-item"><a class="page-link" href="#">3</a></li>
+    <li class="page-item">
+      <a @click="getNextPage()" class="page-link" href="#">Next</a>
+    </li>
+  </ul>
+</nav>
    
 
 <div class="container ">
 <div class="card mt-5 ">
 <div class="card-header text-white bg-info">
+
 <h4 class="mt-2">Item List</h4>
-<div> 
-<span>item count: </span>
+<div style="    text-align: right;"> 
+<span>Item Count: </span>
  <span v-if="posts">{{posts.length}}</span>
 <div v-if="!posts" class="spinner-border" role="status">
 </div>
@@ -238,7 +325,12 @@ editItemData: {
 <div v-if="!posts" class="spinner-border" role="status">
   <span class="visually-hidden">Loading...</span>
   </div>
-
+<BPagination class="pagination-sm"
+      v-model="currentPage"
+      :total-rows="dataStream.length"
+      :per-page="perPage"
+      aria-controls="my-table"
+    ></BPagination>
 <table  class="table table-hover">
   <thead class="table">
     <tr >
@@ -309,6 +401,10 @@ editItemData: {
   color: #2c3e50;
   margin-top: 30px;
 }
+.card
+{
+  box-shadow: 0 2px 8px rgb(0 0 0 / 33%);
+}
 select {
   float: left;
   margin: 0 1em 1em 0;
@@ -345,7 +441,10 @@ td
   margin : 12px;
   max-width:50px
 }
-
+span + span
+{
+  font-size: 32px
+}
 button + button
 {
   margin : 12px;
