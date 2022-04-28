@@ -3,7 +3,9 @@
 import HelloWorld from './components/HelloWorld.vue';
 import AddMenu from './components/AddMenu.vue'
 import Modal from './components/Modal.vue';
-import { BPagination} from 'bootstrap-vue-3'
+import {Server_API_URL , Loca_API_URL} from './Constants.js';
+
+import { BPagination,BToast} from 'bootstrap-vue-3'
 const pagination = ( page, totalItemsCount, numberOfItemsPerPage) => {
   var pagesCount = (totalItemsCount - 1) / numberOfItemsPerPage + 1;
   
@@ -22,9 +24,9 @@ const fetch_retry = async (url, options, n = 3) => {
         }
     }
 };
-const Server_API_URL = `https://jsonplaceholder.typicode.com/comments/`;
-const Loca_API_URL = `http://localhost:3000/comments/`;
-let API_URL = Loca_API_URL;
+const Server_API_URLs = `https://jsonplaceholder.typicode.com/comments/`;
+const Local_API_URLs = `http://localhost:3000/comments/`;
+let API_URL = Local_API_URLs;
 let id = 0;
 let tableCount = 0;
 const getInitialItems = () => {
@@ -38,15 +40,18 @@ const getInitialItems = () => {
   */
 export default {
    components: {
+     BToast,
      BPagination,
     AddMenu,
     Modal
   },
   data() {
     return {
+      hide: false,
+      vWidth: window.innerWidth,
       currentPage:1,
-      perPage:5,
-      Enviroment : [Server_API_URL , Loca_API_URL],
+      perPage:6,
+      Enviroment : [ {"Api" : Server_API_URL , displayName : "Web"} , {"Api" :Loca_API_URL , displayName : "Local"}],
       selectedEnviroment: Loca_API_URL,
       editO:null,
       todoId: 1,
@@ -107,13 +112,21 @@ export default {
       this.posts = this.posts.filter((t) => t.id !== i.id);
 
     },
-    addToCollection(i)
+    addToCollection(i , start = 0, end=0)
     {
       //this.posts.splice()
-      let current = this.posts.length;
-      this.posts.splice(0, 1, i)
+      this.dataStream.splice(start,end,i)
+      this.posts.splice(start, end, i)
       //this.posts.push(i);
     },
+      replaceCollection(json)
+      {
+        const index = this.posts.findIndex(object => {
+  return object.id === json.id;});
+
+  this.addToCollection(json, index, 1)
+  //this.posts.splice(index, 1, json)
+      },
     removePost(i){
       this.posts = this.posts.filter((t) => t !== i);
       
@@ -122,13 +135,23 @@ export default {
       console.log(i);
     },
     async GetList() {
+      let myHeaders = new Headers();
+myHeaders.append('pragma', 'no-cache');
+myHeaders.append('cache-control', 'no-cache');
+let myInit = {
+  method: 'GET',
+  headers: myHeaders,
+};
+
       //this.posts = null;
-      let ge = await fetch_retry(API_URL);
+      let ge = await fetch_retry(API_URL ,myInit);
       let v = await ge.json();
+      //used as total entries
       this.dataStream= v;
+      //items to display
       this.posts= v;
       //let e = this.currentPage = 1;
-      //this.currentPage = 1;
+      this.currentPage = 1;
       console.log(pagination(1, this.dataStream.length,5))
        this.getNextPage()
     },
@@ -187,7 +210,7 @@ export default {
     'Content-type': 'application/json; charset=UTF-8',
   },
 
-}).then((response) => response.json()).then((json) => {console.log("server upload response" , json); this.posts.splice(0,0,json) })
+}).then((response) => response.json()).then((json) => {console.log("server upload response" , json); this.addToCollection(json) })
 .catch(error => {alert(error);});
 
  //this.posts.push({ postId, title: title, body: body})
@@ -215,13 +238,12 @@ editItemData: {
   },
 }).then((response) => response.json()).then((json) => {console.log("server response" , json);
  //this.GetList()
-//this.posts[json.id -1].body = json.body; 
-//this.posts[json.id -1].name = json.title; 
+ /*
 const index = this.posts.findIndex(object => {
   return object.id === json.id;
 });
-this.posts.splice(index, 1, json)
-  //addToCollection(i, json)
+this.posts.splice(index, 1, json)*/
+  this.replaceCollection(json)
 
  })
 .catch(error => {alert(error);});
@@ -230,13 +252,19 @@ this.posts.splice(index, 1, json)
 
   },
     mounted() {
+      
+      window.onresize = () => {
+                this.vWidth = window.innerWidth
+                console.log(this.vWidth)
+            }
     this.GetList();
+    API_URL = this.selectedEnviroment;
   },
   computed: {
       rows() {
         //if(this.posts)
         return this.dataStream.length
-      },
+      }
       
     },
   watch: {
@@ -255,66 +283,19 @@ this.posts.splice(index, 1, json)
 </script>
 
 <template>
-      <div class="overflow-auto">
-    
-        <h1 class="modal-container">Crud App</h1>   
-<div  class="container">
-<template v-for="branch in Enviroment">
-    <input type="radio"
-      :id="branch"
-      :value="branch"
-      name="branch"
-      v-model="selectedEnviroment">
-    <label :for="branch">{{ branch }}</label>
-  </template>
-</div>
-
+      <toast/>
+<b-alert show>Default Alert</b-alert>
   <div id="app">
 
-  <div  class="container">
-  
-  <AddMenu @response="(msg) => { UploadData(msg);}"></AddMenu>
-<modal :show="!posts" @close="showModal = false"> 
-<template #header>
-        <h3>Connecting to Database</h3>   
-        </template>
-        <template #body>
-        <p>Loading Database...</p>  
-        <div class="spinner-border" role="status">
-  <span class="visually-hidden">Loading...</span>
-  </div> 
-        </template>
-        </modal>
-</div>
-
-    <button @click="GetList">Get posts</button>
-    <p v-if="!posts">Getting Posts...</p>
-    <p v-else>{{ posts[0] }} </p>
-<button @click="getNextPage"> Next page</button>
-
-<nav aria-label="Page navigation example">
-  <ul class="pagination justify-content-center">
-      <a @click="getPreviousPage()" class="page-link" href="#" tabindex="-1">Previous</a>
-    <li class="page-item disabled">
-    </li>
-    <li class="page-item"><a class="page-link" href="#">1</a></li>
-    <li class="page-item"><a class="page-link" href="#">2</a></li>
-    <li class="page-item"><a class="page-link" href="#">3</a></li>
-    <li class="page-item">
-      <a @click="getNextPage()" class="page-link" href="#">Next</a>
-    </li>
-  </ul>
-</nav>
-   
-
 <div class="container ">
-<div class="card mt-5 ">
+
+<div class="card mt-5" style="height: 540px">
 <div class="card-header text-white bg-info">
 
 <h4 class="mt-2">Item List</h4>
 <div style="    text-align: right;"> 
 <span>Item Count: </span>
- <span v-if="posts">{{posts.length}}</span>
+ <span v-if="posts">{{dataStream.length}}</span>
 <div v-if="!posts" class="spinner-border" role="status">
 </div>
   <span class="visually-hidden">Loading...</span>
@@ -322,19 +303,10 @@ this.posts.splice(index, 1, json)
 </div>
  <div  class="card-body">
 
-<div v-if="!posts" class="spinner-border" role="status">
-  <span class="visually-hidden">Loading...</span>
-  </div>
-<BPagination class="pagination-sm"
-      v-model="currentPage"
-      :total-rows="dataStream.length"
-      :per-page="perPage"
-      aria-controls="my-table"
-    ></BPagination>
 <table  class="table table-hover">
   <thead class="table">
     <tr >
-      <th scope="col">ID</th>
+      <th v-if="vWidth > 500" scope="col">ID</th>
       <th scope="col">Name</th>
       <th scope="col">Desc</th>
       <th scope="col">Action</th>
@@ -345,7 +317,7 @@ this.posts.splice(index, 1, json)
   
   <tr v-for="itr in posts" :key="itr.id">
               <template v-if="editing && editID ==itr.id">
-                    <th>
+                    <th v-if="vWidth > 500">
                       {{ itr.id }}
                     
                     </th>
@@ -362,7 +334,7 @@ this.posts.splice(index, 1, json)
 
                 <template v-else>
                 
-      <th scope="row">{{itr.id}}</th >
+      <th v-if="vWidth > 500"scope="row">{{itr.id}}</th >
       <td >{{itr.name}}</td>
       <td>{{itr.body}}</td>
 
@@ -389,22 +361,67 @@ this.posts.splice(index, 1, json)
 </div>
 </div>
 </div>
+<div class="container ">
+<BPagination class="pagination-sm"
+      v-model="currentPage"
+      :total-rows="dataStream.length"
+      :per-page="perPage"
+      aria-controls="my-table"
+    ></BPagination>
+    </div>
+
+
+  <div  class="container mb-2">
+  
+  <AddMenu @response="(msg) => { UploadData(msg);}"></AddMenu>
+<modal :show="!posts" @close="selectedEnviroment = Enviroment[0]"> 
+<template #header>
+        <h3>Connecting to Database</h3>   
+        </template>
+        <template #body>
+        <p>Loading Database...</p>  
+        <div class="spinner-border" role="status">
+  <span class="visually-hidden">Loading...</span>
+  </div> 
+        </template>
+        <template #footer>
+        <p>Change Mock Api</p>
+        <div  class="container">
+
+<template v-for="branch in Enviroment" :key="branch.Api">
+<ul>
+    <input class="form-check-input" type="radio"
+      :id="branch.Api"
+      :value="branch.Api"
+      v-model="selectedEnviroment">
+    <label :for="branch">{{ branch.displayName }}</label>
+    </ul>
+  </template>
+</div>
+        </template>
+        </modal>
+</div>
+
+   
+
+
 
 </template>
 
 <style>
 #app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
   color: #2c3e50;
-  margin-top: 30px;
 }
-.card
+.card-body
 {
-  box-shadow: 0 2px 8px rgb(0 0 0 / 33%);
+max-height : 400px;
+overflow-y: overlay;
 }
+
+
 select {
   float: left;
   margin: 0 1em 1em 0;
@@ -424,6 +441,13 @@ select {
   max-width: 250px
   
 }
+table{
+  word-break: break-all;
+  margin-left: auto;
+            margin-right: auto;
+            font-size: 12px;
+            width: 100%;
+}
 th{
     vertical-align: middle;
 
@@ -432,20 +456,15 @@ td
 {
   vertical-align: middle;
   margin : 12px;
-  
+    max-width:50px
+
 }
 
-
-td
-{
-  margin : 12px;
-  max-width:50px
-}
 span + span
 {
   font-size: 32px
 }
-button + button
+td button + button
 {
   margin : 12px;
 }
@@ -462,9 +481,21 @@ max-width : 60px
 .list-leave-active {
   transition: all 0.2s ease;
 }
-.list-enter-from,
+.list-enter-from
+{
+   position: absolute;
+}
 .list-leave-to {
   opacity: 0;
-  transform: translateX(50px);
+  z-index : -1;
+  transform: scaleY(0.01) translateX(202px);
+  z-index: -10;
+  
+}
+
+.fade-leave-active {
+  opacity: 0;
+   
+
 }
 </style>
